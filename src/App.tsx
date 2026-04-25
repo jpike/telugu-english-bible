@@ -22,7 +22,6 @@ function App(): JSX.Element
     const [is_picker_open, set_is_picker_open] = useState<boolean>(false);
     const [visibility, set_visibility] = useState<LineVisibility>(() => load_saved_visibility());
     const [font_scale, set_font_scale] = useState<number>(() => load_saved_font_scale());
-    const [letter_mode, set_letter_mode] = useState<boolean>(() => load_saved_letter_mode());
 
     useEffect(() =>
     {
@@ -40,11 +39,6 @@ function App(): JSX.Element
     {
         localStorage.setItem("telugu_bible_font_scale", String(font_scale));
     }, [font_scale]);
-
-    useEffect(() =>
-    {
-        localStorage.setItem("telugu_bible_letter_mode", letter_mode ? "1" : "0");
-    }, [letter_mode]);
 
     const current_book = useMemo(
         () => books.find((book) => book.id === current_book_id) ?? null,
@@ -94,10 +88,8 @@ function App(): JSX.Element
                     <SettingsPanel
                         visibility={visibility}
                         font_scale={font_scale}
-                        letter_mode={letter_mode}
                         on_visibility_change={set_visibility}
                         on_font_scale_change={set_font_scale}
-                        on_letter_mode_change={set_letter_mode}
                     />
                 </div>
 
@@ -120,7 +112,6 @@ function App(): JSX.Element
                         chapter_number={current_chapter}
                         visibility={visibility}
                         font_scale={font_scale}
-                        letter_mode={letter_mode}
                         on_navigate_chapter={handle_select_chapter}
                     />
                 ) : (
@@ -197,23 +188,6 @@ function load_saved_font_scale(): number
     catch
     {
         return DEFAULT_FONT_SCALE;
-    }
-}
-
-/**
- * Loads the persisted letter-mode preference from localStorage.
- * Letter mode swaps word-level coloring for per-akshara coloring inline.
- */
-function load_saved_letter_mode(): boolean
-{
-    try
-    {
-        const raw = localStorage.getItem("telugu_bible_letter_mode");
-        return raw === "1";
-    }
-    catch
-    {
-        return false;
     }
 }
 
