@@ -1,0 +1,80 @@
+/*
+  # Seed Bible Book Catalog
+
+  Populates the `books` table with all 66 canonical Bible books, their English
+  and Telugu names, testament, and canonical order. Chapter counts are stored
+  so the UI can render chapter pickers even for books not yet ingested.
+
+  ## Notes
+  1. Content is catalog metadata only; no actual verse text is added here.
+  2. This seed is idempotent via ON CONFLICT DO NOTHING.
+*/
+
+INSERT INTO books (id, name_english, name_telugu, testament, book_order, chapter_count) VALUES
+(1,'Genesis','ఆదికాండము','old',1,50),
+(2,'Exodus','నిర్గమకాండము','old',2,40),
+(3,'Leviticus','లేవీయకాండము','old',3,27),
+(4,'Numbers','సంఖ్యాకాండము','old',4,36),
+(5,'Deuteronomy','ద్వితీయోపదేశకాండము','old',5,34),
+(6,'Joshua','యెహోషువ','old',6,24),
+(7,'Judges','న్యాయాధిపతులు','old',7,21),
+(8,'Ruth','రూతు','old',8,4),
+(9,'1 Samuel','సమూయేలు మొదటి గ్రంథము','old',9,31),
+(10,'2 Samuel','సమూయేలు రెండవ గ్రంథము','old',10,24),
+(11,'1 Kings','రాజులు మొదటి గ్రంథము','old',11,22),
+(12,'2 Kings','రాజులు రెండవ గ్రంథము','old',12,25),
+(13,'1 Chronicles','దినవృత్తాంతములు మొదటి గ్రంథము','old',13,29),
+(14,'2 Chronicles','దినవృత్తాంతములు రెండవ గ్రంథము','old',14,36),
+(15,'Ezra','ఎజ్రా','old',15,10),
+(16,'Nehemiah','నెహెమ్యా','old',16,13),
+(17,'Esther','ఎస్తేరు','old',17,10),
+(18,'Job','యోబు','old',18,42),
+(19,'Psalms','కీర్తనలు','old',19,150),
+(20,'Proverbs','సామెతలు','old',20,31),
+(21,'Ecclesiastes','ప్రసంగి','old',21,12),
+(22,'Song of Solomon','పరమగీతము','old',22,8),
+(23,'Isaiah','యెషయా','old',23,66),
+(24,'Jeremiah','యిర్మీయా','old',24,52),
+(25,'Lamentations','విలాపవాక్యములు','old',25,5),
+(26,'Ezekiel','యెహెజ్కేలు','old',26,48),
+(27,'Daniel','దానియేలు','old',27,12),
+(28,'Hosea','హోషేయ','old',28,14),
+(29,'Joel','యోవేలు','old',29,3),
+(30,'Amos','ఆమోసు','old',30,9),
+(31,'Obadiah','ఓబద్యా','old',31,1),
+(32,'Jonah','యోనా','old',32,4),
+(33,'Micah','మీకా','old',33,7),
+(34,'Nahum','నహూము','old',34,3),
+(35,'Habakkuk','హబక్కూకు','old',35,3),
+(36,'Zephaniah','జెఫన్యా','old',36,3),
+(37,'Haggai','హగ్గయి','old',37,2),
+(38,'Zechariah','జెకర్యా','old',38,14),
+(39,'Malachi','మలాకీ','old',39,4),
+(40,'Matthew','మత్తయి','new',40,28),
+(41,'Mark','మార్కు','new',41,16),
+(42,'Luke','లూకా','new',42,24),
+(43,'John','యోహాను','new',43,21),
+(44,'Acts','అపొస్తలుల కార్యములు','new',44,28),
+(45,'Romans','రోమీయులకు','new',45,16),
+(46,'1 Corinthians','కొరింథీయులకు మొదటి పత్రిక','new',46,16),
+(47,'2 Corinthians','కొరింథీయులకు రెండవ పత్రిక','new',47,13),
+(48,'Galatians','గలతీయులకు','new',48,6),
+(49,'Ephesians','ఎఫెసీయులకు','new',49,6),
+(50,'Philippians','ఫిలిప్పీయులకు','new',50,4),
+(51,'Colossians','కొలొస్సయులకు','new',51,4),
+(52,'1 Thessalonians','థెస్సలొనీకయులకు మొదటి పత్రిక','new',52,5),
+(53,'2 Thessalonians','థెస్సలొనీకయులకు రెండవ పత్రిక','new',53,3),
+(54,'1 Timothy','తిమోతికి మొదటి పత్రిక','new',54,6),
+(55,'2 Timothy','తిమోతికి రెండవ పత్రిక','new',55,4),
+(56,'Titus','తీతుకు','new',56,3),
+(57,'Philemon','ఫిలేమోనుకు','new',57,1),
+(58,'Hebrews','హెబ్రీయులకు','new',58,13),
+(59,'James','యాకోబు','new',59,5),
+(60,'1 Peter','పేతురు మొదటి పత్రిక','new',60,5),
+(61,'2 Peter','పేతురు రెండవ పత్రిక','new',61,3),
+(62,'1 John','యోహాను మొదటి పత్రిక','new',62,5),
+(63,'2 John','యోహాను రెండవ పత్రిక','new',63,1),
+(64,'3 John','యోహాను మూడవ పత్రిక','new',64,1),
+(65,'Jude','యూదా','new',65,1),
+(66,'Revelation','ప్రకటన','new',66,22)
+ON CONFLICT (id) DO NOTHING;
