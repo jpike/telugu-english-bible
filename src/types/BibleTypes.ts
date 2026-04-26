@@ -29,6 +29,8 @@ export interface BibleBook
  */
 export interface VerseToken
 {
+    /** Stable database id used to look up character-level alignments. */
+    id: number;
     /** Position within the verse, starting at 1. */
     position: number;
     /** Telugu script word. */
