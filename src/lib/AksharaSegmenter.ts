@@ -276,6 +276,3 @@ export function segment_word_into_alignments(telugu_word: string): CharacterAlig
 
     return alignments;
 }
-
-
-export { segment_word_into_alignments }
