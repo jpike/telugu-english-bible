@@ -1,16 +1,18 @@
-import { Minus, Plus } from "lucide-react";
+import { Minus, Plus, Type } from "lucide-react";
 import { LineVisibility } from "./InterlinearVerse";
 
 /**
- * Props for the SettingsPanel allowing the reader to toggle lines
- * and adjust font size.
+ * Props for the SettingsPanel allowing the reader to toggle lines,
+ * adjust font size, and switch into per-character "letter mode".
  */
 interface SettingsPanelProps
 {
     visibility: LineVisibility;
     font_scale: number;
+    letter_mode: boolean;
     on_visibility_change: (next: LineVisibility) => void;
     on_font_scale_change: (next: number) => void;
+    on_letter_mode_change: (next: boolean) => void;
 }
 
 /**
@@ -41,6 +43,19 @@ export function SettingsPanel(props: SettingsPanelProps): JSX.Element
                 <LineToggle label="Aa" is_active={props.visibility.show_transliteration} on_click={() => toggle_line("show_transliteration")} italic />
                 <LineToggle label="En" is_active={props.visibility.show_english} on_click={() => toggle_line("show_english")} />
             </div>
+
+            <button
+                type="button"
+                onClick={() => props.on_letter_mode_change(!props.letter_mode)}
+                aria-pressed={props.letter_mode}
+                title="Letter mode: color-code each Telugu character with its English letters"
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition text-[11px] font-semibold ${props.letter_mode
+                    ? "bg-[var(--accent)] text-white border-[var(--accent)]"
+                    : "bg-[var(--bg-page)] text-[var(--ink-secondary)] border-[var(--rule)] hover:bg-[var(--accent-soft)]"}`}
+            >
+                <Type size={12} />
+                <span>Letters</span>
+            </button>
 
             <div className="flex items-center gap-1 bg-[var(--bg-page)] border border-[var(--rule)] rounded-full p-1">
                 <button
