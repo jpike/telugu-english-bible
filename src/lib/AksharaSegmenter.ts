@@ -1,18 +1,23 @@
 import { CharacterAlignment } from "../types/CharacterAlignmentTypes";
 
 /**
- * Segments a Telugu word into aksharas (orthographic syllables) and
- * produces an approximate ISO-15919-style transliteration for each
- * akshara. Used as a runtime fallback when the database does not yet
- * have a hand-curated character alignment for a given token.
+ * Segments a Telugu word into individual letter units (one per Telugu
+ * codepoint such as a consonant, vowel sign, or modifier mark) and pairs
+ * each unit with the Latin letters it produces in ISO-15919 style.
  *
- * An "akshara" is a visual unit that begins with either an independent
- * vowel or a consonant, optionally followed by:
- *   - a vowel sign (matra) that overrides the consonant's inherent 'a'
- *   - one or more virama-joined consonants (conjunct cluster)
- *   - combining marks like anusvara, visarga, candrabindu, length marks
+ * Used as a runtime fallback when the database does not yet have a
+ * hand-curated character alignment for a given token.
  *
- * The segmenter intentionally produces approximate transliterations.
+ * Letter-unit rules:
+ *   - An independent vowel emits its full Latin form (e.g. ఆ → ā).
+ *   - A consonant emits its base letters; if no vowel sign or virama
+ *     immediately follows, the inherent 'a' is appended (e.g. ద → da,
+ *     but ద followed by ి emits just 'd' and the matra emits 'i').
+ *   - A virama attaches to its preceding consonant chip (so the chip
+ *     reads as the bare consonant with no inherent vowel).
+ *   - A vowel sign (matra) is its own chip with the vowel's Latin form.
+ *   - Anusvara / visarga / candrabindu are their own chips.
+ *
  * Hand-curated rows in `token_character_alignments` always take
  * precedence at the data layer.
  */
@@ -22,6 +27,9 @@ const ANUSVARA_CODEPOINT = 0x0C02;
 const VISARGA_CODEPOINT = 0x0C03;
 const CANDRABINDU_CODEPOINT = 0x0C01;
 const COMBINING_ANUSVARA_ABOVE = 0x0C00;
+const LENGTH_MARK_CODEPOINT = 0x0C55;
+const AI_LENGTH_MARK_CODEPOINT = 0x0C56;
+const NUKTA_CODEPOINT = 0x0C3C;
 
 /**
  * Map from a Telugu independent vowel codepoint to its ISO-15919 form.
@@ -47,7 +55,6 @@ const INDEPENDENT_VOWEL_TO_LATIN: Record<number, string> = {
 
 /**
  * Map from a Telugu vowel sign (matra) codepoint to its Latin form.
- * The inherent 'a' is implicit when no vowel sign is present.
  */
 const VOWEL_SIGN_TO_LATIN: Record<number, string> = {
     0x0C3E: "ā",
@@ -110,25 +117,16 @@ const CONSONANT_TO_LATIN_BASE: Record<number, string> = {
     0x0C39: "h",
 };
 
-/**
- * Returns true if the given codepoint is a Telugu consonant.
- */
 function is_consonant(codepoint: number): boolean
 {
     return Object.prototype.hasOwnProperty.call(CONSONANT_TO_LATIN_BASE, codepoint);
 }
 
-/**
- * Returns true if the given codepoint is an independent Telugu vowel.
- */
 function is_independent_vowel(codepoint: number): boolean
 {
     return Object.prototype.hasOwnProperty.call(INDEPENDENT_VOWEL_TO_LATIN, codepoint);
 }
 
-/**
- * Returns true if the given codepoint is a Telugu vowel sign (matra).
- */
 function is_vowel_sign(codepoint: number): boolean
 {
     return Object.prototype.hasOwnProperty.call(VOWEL_SIGN_TO_LATIN, codepoint);
@@ -154,173 +152,90 @@ function transliterate_standalone_mark(codepoint: number): string
     {
         return "m̐";
     }
+    if (codepoint === LENGTH_MARK_CODEPOINT || codepoint === AI_LENGTH_MARK_CODEPOINT)
+    {
+        return "";
+    }
+    if (codepoint === NUKTA_CODEPOINT)
+    {
+        return "";
+    }
     return "";
 }
 
 /**
- * Tells whether a codepoint can attach to the akshara currently being
- * built (i.e. it should NOT start a new akshara on its own).
- */
-function is_attaching_codepoint(codepoint: number): boolean
-{
-    return (
-        is_vowel_sign(codepoint)
-        || codepoint === VIRAMA_CODEPOINT
-        || codepoint === ANUSVARA_CODEPOINT
-        || codepoint === VISARGA_CODEPOINT
-        || codepoint === CANDRABINDU_CODEPOINT
-        || codepoint === COMBINING_ANUSVARA_ABOVE
-        || codepoint === 0x0C55
-        || codepoint === 0x0C56
-        || codepoint === 0x0C3C
-    );
-}
-
-/**
- * Transliterates one already-segmented akshara string into an
- * approximate ISO-15919 form.
- */
-function transliterate_akshara(akshara_text: string): string
-{
-    // ITERATE OVER THE AKSHARA'S CODEPOINTS IN ORDER, EMITTING LATIN PIECES.
-    const codepoints = Array.from(akshara_text).map((char) => char.codePointAt(0) ?? 0);
-    let result = "";
-    let pending_consonant_needs_inherent_vowel = false;
-
-    function flush_inherent_vowel(): void
-    {
-        if (pending_consonant_needs_inherent_vowel)
-        {
-            result += "a";
-            pending_consonant_needs_inherent_vowel = false;
-        }
-    }
-
-    for (let codepoint_index = 0; codepoint_index < codepoints.length; codepoint_index++)
-    {
-        const codepoint = codepoints[codepoint_index];
-
-        if (is_consonant(codepoint))
-        {
-            // A NEW CONSONANT: FLUSH ANY PENDING INHERENT VOWEL FROM A PRIOR ONE,
-            // THEN EMIT THIS CONSONANT'S BASE LETTERS AND MARK IT AS NEEDING A VOWEL.
-            flush_inherent_vowel();
-            result += CONSONANT_TO_LATIN_BASE[codepoint];
-            pending_consonant_needs_inherent_vowel = true;
-            continue;
-        }
-
-        if (is_independent_vowel(codepoint))
-        {
-            flush_inherent_vowel();
-            result += INDEPENDENT_VOWEL_TO_LATIN[codepoint];
-            continue;
-        }
-
-        if (is_vowel_sign(codepoint))
-        {
-            // A VOWEL SIGN OVERRIDES THE INHERENT 'a' OF THE PRECEDING CONSONANT.
-            result += VOWEL_SIGN_TO_LATIN[codepoint];
-            pending_consonant_needs_inherent_vowel = false;
-            continue;
-        }
-
-        if (codepoint === VIRAMA_CODEPOINT)
-        {
-            // VIRAMA SUPPRESSES THE INHERENT VOWEL; THE NEXT CONSONANT BECOMES PART OF A CLUSTER.
-            pending_consonant_needs_inherent_vowel = false;
-            continue;
-        }
-
-        const standalone_mark = transliterate_standalone_mark(codepoint);
-        if (standalone_mark.length > 0)
-        {
-            // ANUSVARA / VISARGA / CANDRABINDU EMIT AFTER FLUSHING ANY INHERENT VOWEL.
-            flush_inherent_vowel();
-            result += standalone_mark;
-            continue;
-        }
-
-        // FALLBACK: PRESERVE UNRECOGNIZED CODEPOINTS VERBATIM (e.g. punctuation).
-        flush_inherent_vowel();
-        result += String.fromCodePoint(codepoint);
-    }
-
-    flush_inherent_vowel();
-    return result;
-}
-
-/**
- * Splits a Telugu word into akshara strings. Each returned string is a
- * single complete grapheme cluster as defined for Telugu.
- */
-function split_into_akshara_strings(telugu_word: string): string[]
-{
-    const codepoints = Array.from(telugu_word).map((char) => char.codePointAt(0) ?? 0);
-    const aksharas: string[] = [];
-    let current = "";
-
-    for (let codepoint_index = 0; codepoint_index < codepoints.length; codepoint_index++)
-    {
-        const codepoint = codepoints[codepoint_index];
-        const character = String.fromCodePoint(codepoint);
-
-        if (current.length === 0)
-        {
-            // FIRST CHARACTER OF A NEW AKSHARA - JUST ACCUMULATE IT.
-            current = character;
-            continue;
-        }
-
-        if (is_attaching_codepoint(codepoint))
-        {
-            // ATTACHES TO THE CURRENT AKSHARA WITHOUT STARTING A NEW ONE.
-            current += character;
-            continue;
-        }
-
-        // VIRAMA AT THE END OF THE CURRENT AKSHARA MEANS THE NEXT CONSONANT JOINS THE CLUSTER.
-        const previous_codepoint = current.codePointAt(current.length - 1) ?? 0;
-        if (previous_codepoint === VIRAMA_CODEPOINT && is_consonant(codepoint))
-        {
-            current += character;
-            continue;
-        }
-
-        // OTHERWISE THIS CHARACTER STARTS A FRESH AKSHARA.
-        aksharas.push(current);
-        current = character;
-    }
-
-    if (current.length > 0)
-    {
-        aksharas.push(current);
-    }
-
-    return aksharas;
-}
-
-/**
- * Computes a runtime CharacterAlignment list for a Telugu word.
+ * Computes a runtime CharacterAlignment list for a Telugu word. Each
+ * element corresponds to a single Telugu codepoint paired with the
+ * Latin letters that codepoint contributes to the transliteration.
  *
- * @param telugu_word The Telugu source word to break into aksharas.
- * @returns One CharacterAlignment per akshara, in left-to-right order,
- *   each with its own per-token color group starting at 1.
+ * @param telugu_word The Telugu source word to break into letter units.
+ * @returns One CharacterAlignment per Telugu codepoint, in left-to-right
+ *   order, each with its own per-token color group starting at 1.
  */
 export function segment_word_into_alignments(telugu_word: string): CharacterAlignment[]
 {
-    const akshara_strings = split_into_akshara_strings(telugu_word);
+    const codepoints = Array.from(telugu_word).map((char) => char.codePointAt(0) ?? 0);
+    const characters = Array.from(telugu_word);
     const alignments: CharacterAlignment[] = [];
 
-    for (let akshara_index = 0; akshara_index < akshara_strings.length; akshara_index++)
+    for (let codepoint_index = 0; codepoint_index < codepoints.length; codepoint_index++)
     {
-        const akshara_text = akshara_strings[akshara_index];
-        const transliteration_text = transliterate_akshara(akshara_text);
+        const codepoint = codepoints[codepoint_index];
+        const character = characters[codepoint_index];
+        const next_codepoint = codepoint_index + 1 < codepoints.length ? codepoints[codepoint_index + 1] : 0;
+
+        let telugu_glyph = character;
+        let transliteration_text = "";
+
+        if (is_consonant(codepoint))
+        {
+            // A CONSONANT EMITS ITS BASE LETTERS; APPEND THE INHERENT 'a' UNLESS A
+            // VOWEL SIGN OR VIRAMA IMMEDIATELY FOLLOWS, IN WHICH CASE THAT NEXT UNIT
+            // PROVIDES (OR SUPPRESSES) THE VOWEL.
+            const base_letters = CONSONANT_TO_LATIN_BASE[codepoint];
+            const has_following_vowel_sign = is_vowel_sign(next_codepoint);
+            const has_following_virama = next_codepoint === VIRAMA_CODEPOINT;
+
+            // ATTACH A FOLLOWING VIRAMA TO THIS CONSONANT'S CHIP SO THE GLYPH READS NATURALLY.
+            if (has_following_virama)
+            {
+                telugu_glyph = character + characters[codepoint_index + 1];
+                transliteration_text = base_letters;
+                codepoint_index += 1;
+            }
+            else if (has_following_vowel_sign)
+            {
+                transliteration_text = base_letters;
+            }
+            else
+            {
+                transliteration_text = base_letters + "a";
+            }
+        }
+        else if (is_independent_vowel(codepoint))
+        {
+            transliteration_text = INDEPENDENT_VOWEL_TO_LATIN[codepoint];
+        }
+        else if (is_vowel_sign(codepoint))
+        {
+            transliteration_text = VOWEL_SIGN_TO_LATIN[codepoint];
+        }
+        else if (codepoint === VIRAMA_CODEPOINT)
+        {
+            // STANDALONE VIRAMA (NO PRECEDING CONSONANT TO ATTACH TO): EMIT AN EMPTY CHIP.
+            transliteration_text = "";
+        }
+        else
+        {
+            const standalone = transliterate_standalone_mark(codepoint);
+            transliteration_text = standalone.length > 0 ? standalone : character;
+        }
+
         alignments.push({
-            position: akshara_index + 1,
-            telugu_grapheme: akshara_text,
+            position: alignments.length + 1,
+            telugu_grapheme: telugu_glyph,
             transliteration_chars: transliteration_text,
-            char_group: akshara_index + 1,
+            char_group: alignments.length + 1,
         });
     }
 
