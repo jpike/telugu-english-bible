@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { BibleBook, BibleVerse, VerseToken } from "../types/BibleTypes";
-import { CharacterAlignmentsByTokenId, fetch_chapter_content } from "../lib/BibleRepository";
+import { BibleBook, BibleVerse } from "../types/BibleTypes";
+import { fetch_chapter_verses } from "../lib/BibleRepository";
 import { InterlinearVerse, LineVisibility } from "./InterlinearVerse";
-import { WordInspectorPopover } from "./WordInspectorPopover";
 import { BookOpen, ChevronLeft, ChevronRight } from "lucide-react";
 
 /**
@@ -14,20 +13,7 @@ interface ChapterReaderProps
     chapter_number: number;
     visibility: LineVisibility;
     font_scale: number;
-    letter_mode: boolean;
     on_navigate_chapter: (book_id: number, chapter_number: number) => void;
-}
-
-/**
- * State describing which word's character breakdown popover is open and
- * where it should be anchored on screen.
- */
-interface ActivePopoverState
-{
-    /** Token whose breakdown is being shown. */
-    token: VerseToken;
-    /** Bounding rectangle of the clicked cell, in viewport coordinates. */
-    anchor_rect: DOMRect;
 }
 
 /**
@@ -38,24 +24,19 @@ interface ActivePopoverState
 export function ChapterReader(props: ChapterReaderProps): JSX.Element
 {
     const [verses, set_verses] = useState<BibleVerse[]>([]);
-    const [character_alignments_by_token_id, set_character_alignments_by_token_id]
-        = useState<CharacterAlignmentsByTokenId>(new Map());
     const [is_loading, set_is_loading] = useState<boolean>(true);
-    const [active_popover, set_active_popover] = useState<ActivePopoverState | null>(null);
 
     useEffect(() =>
     {
         let was_cancelled = false;
         set_is_loading(true);
-        set_active_popover(null);
 
-        fetch_chapter_content(props.book.id, props.chapter_number)
-            .then((chapter_content) =>
+        fetch_chapter_verses(props.book.id, props.chapter_number)
+            .then((loaded_verses) =>
             {
                 if (!was_cancelled)
                 {
-                    set_verses(chapter_content.verses);
-                    set_character_alignments_by_token_id(chapter_content.character_alignments_by_token_id);
+                    set_verses(loaded_verses);
                     set_is_loading(false);
                 }
             })
@@ -64,7 +45,6 @@ export function ChapterReader(props: ChapterReaderProps): JSX.Element
                 if (!was_cancelled)
                 {
                     set_verses([]);
-                    set_character_alignments_by_token_id(new Map());
                     set_is_loading(false);
                 }
             });
@@ -74,17 +54,6 @@ export function ChapterReader(props: ChapterReaderProps): JSX.Element
             was_cancelled = true;
         };
     }, [props.book.id, props.chapter_number]);
-
-    function handle_word_click(token: VerseToken, anchor_rect: DOMRect): void
-    {
-        // TOGGLE: CLICKING THE SAME WORD AGAIN CLOSES THE POPOVER.
-        if (active_popover && active_popover.token.id === token.id)
-        {
-            set_active_popover(null);
-            return;
-        }
-        set_active_popover({ token, anchor_rect });
-    }
 
     const can_go_previous = props.chapter_number > 1;
     const can_go_next = props.chapter_number < props.book.chapter_count;
@@ -121,9 +90,6 @@ export function ChapterReader(props: ChapterReaderProps): JSX.Element
                             verse={verse}
                             visibility={props.visibility}
                             font_scale={props.font_scale}
-                            letter_mode={props.letter_mode}
-                            character_alignments_by_token_id={character_alignments_by_token_id}
-                            on_word_click={handle_word_click}
                         />
                     ))}
                 </div>
@@ -152,17 +118,6 @@ export function ChapterReader(props: ChapterReaderProps): JSX.Element
                     Next chapter <ChevronRight size={16} />
                 </button>
             </nav>
-
-            {active_popover && (
-                <WordInspectorPopover
-                    token={active_popover.token}
-                    character_alignments={character_alignments_by_token_id.get(active_popover.token.id) ?? []}
-                    has_curated_alignments={character_alignments_by_token_id.has(active_popover.token.id)}
-                    anchor_rect={active_popover.anchor_rect}
-                    font_scale={props.font_scale}
-                    on_close={() => set_active_popover(null)}
-                />
-            )}
         </article>
     );
 }
